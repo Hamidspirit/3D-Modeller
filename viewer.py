@@ -1,10 +1,11 @@
 from OpenGL.GL import (
     glEnable, glCullFace,
     glDepthFunc, glLightfv,
-    glColorMaterial, glClearColor,
+    glColorMaterial, glClearColor,glClear,
     GL_LIGHT0, GL_BACK, GLfloat_4, GLfloat_3, GL_CULL_FACE, 
     GL_DEPTH_TEST, GL_LESS, GL_POSITION, GL_SPOT_DIRECTION,
-    GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, GL_COLOR_MATERIAL
+    GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, GL_COLOR_MATERIAL,
+    GL_LIGHTING,GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT,
     )
 from OpenGL.GLUT import (
     glutMainLoop, glutInit,
@@ -13,6 +14,10 @@ from OpenGL.GLUT import (
     glutDisplayFunc,
     )
 
+from OpenGL import GL
+from OpenGL import GLUT
+from OpenGL import GLU
+
 import numpy
 
 from scene import Scene
@@ -20,6 +25,7 @@ from cube import Cube
 from sphere import Sphere
 from snowfiqure import SnowFiqure
 from interaction import Interaction
+from primitive import G_OBJ_PLANE
 
 class Viewer(object):
     def __init__(self):
@@ -94,8 +100,52 @@ class Viewer(object):
         self.interaction.register_callback('scale', self.scale)
         print("interaction")
 
-    def render():
+    def render(self):
+        """The render pass for the scene"""
+        self.init_view()
+        glEnable(GL_LIGHTING)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        # Load the modelview
+        GL.glMatrixMode(GL.GL_MODELVIEW)
+        GL.glPushMatrix()
+        GL.glLoadIdentity()
+        loc = self.interaction.translation()
+        GL.glTranslated(loc[0], loc[1], loc[2])
+        GL.glMultMatrixf(self.interaction.trackball.matrix)
+
+        # Store the inverse of current modelview
+        currentModel = numpy.array(GL.glGetFloatv(GL.GL_MODELVIEW_MATRIX))
+        self.modelView = numpy.transpose(currentModel)
+
+        # REnder scene tis will call render function 
+        # for each object
+        self.scene.render()
+
+        # draw the grid
+        GL.glDisable(GL.GL_LIGHTING)
+        GL.glCallList(G_OBJ_PLANE)
+        GL.glPopMatrix()
+
+        # flush the so the scene can be drawn
+        GL.glFlush()
+
         print("Render")
+
+    def init_view(self):
+        """Initialize projection matrix"""
+        xSize, ySize = GLUT.glutGet(GLUT.GLUT_WINDOW_WIDTH), GLUT.glutGet(GLUT.GLUT_WINDOW_HEIGHT)
+        aspect_ratio = float(xSize) / float(ySize)
+
+        # Load the projection matrix
+        GL.glMatrixMode(GL.GL_PROJECTION)
+        GL.glLoadIdentity()
+
+        GL.glViewport(0, 0, xSize, ySize)
+        GLU.gluPerspective(70, aspect_ratio, 0.1, 1000.0)
+        GL.glTranslated(0, 0 , -15)
+
+        print("Init view")
 
     def main_loop(self):
         glutMainLoop()
