@@ -19,15 +19,15 @@ from OpenGL import GLUT
 from OpenGL import GLU
 
 import numpy
+from numpy.linalg import norm, inv
 
 from scene import Scene
-from cube import Cube
-from sphere import Sphere
-from snowfiqure import SnowFiqure
+from node import Sphere, Cube, SnowFigure
 from interaction import Interaction
 from primitive import G_OBJ_PLANE
 
 class Viewer(object):
+
     def __init__(self):
         """Initialize the viewer"""
         self.init_interface()
@@ -40,7 +40,7 @@ class Viewer(object):
         """Initialize the window and register the render function"""
         glutInit()
         glutInitWindowSize(640, 480)
-        glutCreateWindow("3D-Modeller")
+        glutCreateWindow("3D Modeller".encode('utf-8'))
         glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB)
         glutDisplayFunc(self.render)
 
@@ -76,15 +76,15 @@ class Viewer(object):
     def create_sample_scene(self):
         cube_node = Cube()
         cube_node.translate(2, 0, 2)
-        cube_node.color_index = 2
+        cube_node.color_index = 1
         self.scene.add_node(cube_node)
 
         sphere_node = Sphere()
         sphere_node.translate(-2, 0, 2)
-        sphere_node.color_index = 1
+        sphere_node.color_index = 3
         self.scene.add_node(sphere_node)
 
-        hierarchical_node = SnowFiqure()
+        hierarchical_node = SnowFigure()
         hierarchical_node.translate(-2, 0, -2)
         self.scene.add_node(hierarchical_node)
 
@@ -110,13 +110,14 @@ class Viewer(object):
         GL.glMatrixMode(GL.GL_MODELVIEW)
         GL.glPushMatrix()
         GL.glLoadIdentity()
-        loc = self.interaction.translation()
+        loc = self.interaction.translation
         GL.glTranslated(loc[0], loc[1], loc[2])
         GL.glMultMatrixf(self.interaction.trackball.matrix)
 
         # Store the inverse of current modelview
-        currentModel = numpy.array(GL.glGetFloatv(GL.GL_MODELVIEW_MATRIX))
-        self.modelView = numpy.transpose(currentModel)
+        currentModelView = numpy.array(GL.glGetFloatv(GL.GL_MODELVIEW_MATRIX))
+        self.modelView = numpy.transpose(currentModelView)
+        self.inverseModelView = inv(numpy.transpose(currentModelView))
 
         # REnder scene tis will call render function 
         # for each object
@@ -146,6 +147,55 @@ class Viewer(object):
         GL.glTranslated(0, 0 , -15)
 
         print("Init view")
+
+    def get_ray(self, x, y):
+        """ 
+        Generate a ray beginning at the near plane, in the direction that
+        the x, y coordinates are facing 
+
+        Consumes: x, y coordinates of mouse on screen 
+        Return: start, direction of the ray 
+        """
+        self.init_view()
+
+        GL.glMatrixMode(GL.GL_MODELVIEW)
+        GL.glLoadIdentity()
+
+        # get two points on the line
+        start = numpy.array(GLU.gluUnProject(x, y, 0.001))
+        end = numpy.array(GLU.gluUnProject(x, y, 0.999))
+
+        # convert points to rays
+        direction = end - start
+        direction = direction / norm(direction)
+
+        return (start , direction)
+
+    def pick(self, x, y):
+        """Select an object in the scene"""
+        start, direction = self.get_ray(x, y)
+        self.scene.pick(start, direction, self.modelView)
+
+    def move(self, x, y):
+        """ Execute a move command on the scene. """
+        start, direction = self.get_ray(x, y)
+        self.scene.move_selected(start, direction, self.inverseModelView)
+
+    def rotate_color(self, forward):
+        """ 
+        Rotate the color of the selected Node. 
+        Boolean 'forward' indicates direction of rotation. 
+        """
+        self.scene.rotate_selected_color(forward)
+
+    def scale(self, up):
+        """ Scale the selected Node. Boolean up indicates scaling larger."""
+        self.scene.scale_selected(up)
+
+    def place(self, shape, x, y):
+        """ Execute a placement of a new primitive into the scene. """
+        start, direction = self.get_ray(x, y)
+        self.scene.place(shape, start, direction, self.inverseModelView)
 
     def main_loop(self):
         glutMainLoop()
